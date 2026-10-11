@@ -1,0 +1,9 @@
+title = "73Bot publication checks"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "discord-bot-token"
+description = "Discord bot token"
+regex = '''(?:mfa\.[A-Za-z0-9_-]{70,}|[A-Za-z0-9_-]{23,30}\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{25,110})'''

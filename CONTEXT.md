@@ -1,32 +1,40 @@
-# 73Bot Project Context
+# 73Bot 開発者向け概要
 
-## 1. 目的 (Objective)
-従来の「SimpleTTSBot」を刷新し、Dockerを利用してWindows/Linux間での完全なポータビリティを実現したDiscord読み上げBOTのバックエンドを開発する。
+Google Colab内でQwen3-TTS 0.6B BaseとDiscord BOTを動かします。
+利用手順は[README](README.md)、開発・検査手順は[CONTRIBUTING](CONTRIBUTING.md)を参照してください。
 
-## 2. 技術スタック (Tech Stack)
-* **言語**: Python 3.13+
-* **API Framework**: FastAPI (音声生成・管理用)
-* **Bot Framework**: discord.py (または disnake) ※本プロジェクトでは discord.py を採用
-* **インフラ**: Docker / Docker Compose
-* **音声合成エンジン**: COEIROINK v2 API (外部連携)
-* **依存ツール**: FFmpeg (Dockerイメージ内に内蔵)
+## 実行経路
 
-## 3. アーキテクチャ構成 (Architecture)
-マイクロサービス設計を採用し、以下の2コンテナ構成とする：
-* **`tts-backend`**: FastAPIで構築。テキストを受け取り、COEIROINK APIを叩いて音声バイナリを生成・返却する。将来的なエンジンの切り替えを容易にするための抽象レイヤー。
-* **`discord-bot`**: Discordのボイスチャンネルを制御。メッセージを検知して `tts-backend` から音声を取得し、FFmpegでストリーミング再生する。
-
-## 4. 開発要件 (Requirements)
-* **ポータビリティ**: Windows (WSL2) および Linux環境で `docker compose up` だけで動作すること。
-* **設定管理**: `env` ファイル（`.env`）によるトークンやAPI URLの管理。
-* **ディレクトリ構造**:
 ```text
-.
-├── docker-compose.yml
-├── backend/         # FastAPI source code
-│   ├── Dockerfile
-│   └── main.py
-└── bot/             # Discord bot source code
-    ├── Dockerfile
-    └── main.py
+Colabの管理画面 → Controller → runner（試聴・測定・BOT）
+                                  ├─ Discord接続 → サーバーごとの待ち行列 → 再生
+                                  └─ 音声生成ワーカー1つ → Qwen3-TTS
 ```
+
+`colab73` が実装本体です。ノートブック側は管理画面とプロセス制御を担当し、モデルは専用の子プロセスだけが保持します。
+初期化・声の準備・合成・終了を音声エンジンの境界にし、Discordの操作と分離しています。
+Python 3.12、qwen-tts 0.1.1、discord.py 2.7.1を基準にしています。
+
+## 維持する動作
+
+- 全投稿を管理者が選んだ共通の声で読む。声を変えるときはBOTを停止する。
+- 書き起こしが空欄なら録音のみの方式、入力があれば録音と文章を利用する方式を使う。
+- サーバーごとに最大100投稿を待機させ、投稿順に再生。1投稿内の先読みは1区間まで。
+- スキップ・退出後の古い生成結果は再生しない。タイムアウト・GPUメモリ不足では停止して再起動を案内する。
+- 二重起動を防ぎ、終了時はDiscord接続と音声ワーカーを閉じる。
+
+## データと秘密情報
+
+Driveにはプリセットの録音・任意の書き起こし、選択中の声、音量、辞書、モデルキャッシュ、測定レポートを保存します。
+既存のプリセット形式を保ち、モデルの設定と声の設定を分離しています。
+実行時はモデルをColabの一時ディスクへコピーし、声の特徴をセッション内で再利用します。
+
+トークンはColabのシークレットから起動時に渡し、設定には保存しません。
+通常投稿の本文は測定ログに記録しません。ノートブックやログを共有する場合も、個人情報や音声を含めないでください。
+
+## 生成物と確認
+
+ノートブックの編集元は `tools/build_colab_notebook.py` です。
+配布ZIPは必要ファイルを明示的に選び、モデル・録音・トークン・実行結果を同梱しません。
+GitHub ActionsではCPUで自動テストと公開対象の検査を行います。
+実GPUの測定とDiscordの実接続は別の確認で、[検証記録](docs/validation.md)に区別して残します。

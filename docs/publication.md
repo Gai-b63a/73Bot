@@ -22,18 +22,19 @@ Windows / Python 3.12.14で以下を確認しました。
 | 検出の確認 | 一時リポジトリの履歴内・未追跡ファイル内の模擬トークンを検出。値を出力しないことを確認 |
 | ツールの取得 | Windows x64 / Linux x64の公式アーカイブでSHA-256確認と展開に成功 |
 
-Linux版Gitleaksはアーカイブの検証・展開までで、実行はWindows版で確認しています。
-GitHub Actions自体はリモートへ反映した後に実行されるため、ローカルテストの成功と区別します。
-GitHubへのpush、公開設定の変更、履歴の書き換えはこの整備では行っていません。
+ローカル検証に加え、2026-10-11にColab版を `master` へ反映しました。
+コミット `de492f5` の [GitHub Actions](https://github.com/Gai-b63a/73Bot/actions/runs/38145998222) で、
+Ubuntu / Python 3.12 / FFmpegによる `tests` と、Linux版Gitleaksによる `secrets` の両ジョブが成功しました。
+Git履歴の書き換えは行っていません。
 
 [音声生成の検証記録](validation.md)にあるとおり、5秒目標は未達です。
 本人の声を使った無料Colab・Discord VCでの通し検証は未実施です。
 今回の公開準備ではモデルや合成処理を変更せず、新しい性能測定も行いません。
 
-## GitHubへ反映するとき
+## 今後の更新時
 
-初回の反映前はREADMEの「Colabで開く」リンクからこの変更を取得できません。先に試す場合は[ZIPの手順](../CONTRIBUTING.md#ノートブックとzipの更新)を使ってください。
-反映後はGitHub Actionsの実行結果と、Colabボタンの取得先を確認してください。
+READMEの「Colabで開く」リンクは `master` のノートブックを取得します。未反映の変更を試す場合は[ZIPの手順](../CONTRIBUTING.md#ノートブックとzipの更新)を使ってください。
+更新後はGitHub Actionsの実行結果と、Colabボタンの取得先を確認してください。
 GitHub側のSecret scanning、Push protection、非公開の脆弱性報告についても設定を確認してください。
 これらの設定はリポジトリ内のファイルだけでは変更されません。
 

@@ -96,7 +96,7 @@ Colabの管理画面 → Controller → runner（試聴・測定・BOT）
 | `ui` | Colabのウィジェット、入力受付、状態・音声の表示 |
 | `application`・`session` | 設定検証、シークレット取得、実行操作、アップロードとセッション内の再利用、測定結果のZIP作成 |
 | `storage` | 設定・プリセットの保存、JSON入出力、FFmpegによる参照音声の切り出しと検査 |
-| `controller`・`runtime` | 子プロセス起動・停止、共通の準備・終了、モード別実行、状態ファイル |
+| `controller`・`runtime` | 子プロセス起動・停止、共通の準備・終了、モード別実行、状態ファイル、本文を含まない稼働ログ |
 | `transport` | Discord接続・サーバー管理、スラッシュコマンド、PCM再生 |
 | `reader` | Discordに依存しない投稿順・先読み・キャンセルの制御 |
 | `speech` | 音声データとインターフェース、Qwen実装、非同期要求の管理、GPU子プロセス |

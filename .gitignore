@@ -65,5 +65,7 @@ state.json
 model.json
 preview-text.txt
 *.log
+*.log.*
+*.log.*
 *.jsonl
 summary.json

@@ -10,6 +10,7 @@ class ColabRefresh:
         self.name = "73Bot.refresh." + uuid.uuid4().hex
         self.generation = 0
         self.sent_outputs = {}
+        self.sent_activity = None
         output.register_callback(self.name, self.refresh)
 
     def refresh(self, generation):
@@ -20,6 +21,9 @@ class ColabRefresh:
         self.panel.refresh()
         for widget in (self.panel.message, self.panel.state, self.panel.logs):
             widget.send_state("value")
+        if self.sent_activity != self.panel.activity.value:
+            self.panel.activity.send_state("value")
+            self.sent_activity = self.panel.activity.value
         for widget in (self.panel.reference, self.panel.preview_audio):
             # Audio is embedded in these outputs. Resend it only when changed,
             # rather than transferring the whole WAV every second.
@@ -43,6 +47,7 @@ class ColabRefresh:
     def attach(self):
         self.generation += 1
         self.sent_outputs.clear()
+        self.sent_activity = None
         name, generation = json.dumps(self.name), self.generation
         # Requests never overlap. This updates an open control panel, without
         # keeping a Python cell running or bypassing Colab runtime limits.

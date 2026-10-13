@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 from .contracts import RuntimePaths, RuntimeStatus, validate_mode
 from .runtime.state import StateFile
+from .runtime.activity import read as read_activity
 from .storage.store import Store
 from .locking import RuntimeLock
 
@@ -53,6 +54,8 @@ class Controller:
         if mode == "bot" and not token:
             raise ValueError("BOTトークンをColabのシークレットに登録してください。")
         self.paths.preview_text.write_text(text, encoding="utf-8")
+        self.paths.activity.write_text("", encoding="utf-8")
+        self.paths.activity.with_name("activity.log.1").unlink(missing_ok=True)
         self.log_file = self.paths.console
         self.state_file.write({"mode": mode, "phase": "起動中"})
         env = os.environ.copy()
@@ -102,3 +105,6 @@ class Controller:
         with path.open("rb") as file:
             file.seek(max(0, path.stat().st_size - 16000))
             return file.read().decode("utf-8", errors="replace")
+
+    def activity_logs(self):
+        return read_activity(self.paths.activity)

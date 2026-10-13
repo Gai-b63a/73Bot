@@ -41,6 +41,10 @@ class RuntimePaths:
         return self.root / "console.log"
 
     @property
+    def activity(self) -> Path:
+        return self.root / "activity.log"
+
+    @property
     def preview_text(self) -> Path:
         return self.root / "preview-text.txt"
 

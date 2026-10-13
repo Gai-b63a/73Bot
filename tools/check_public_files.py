@@ -77,6 +77,7 @@ def private_path(name: str) -> bool:
     path = PurePosixPath(name.lower())
     return (any(part in PRIVATE_DIRS for part in path.parts)
             or path.name in PRIVATE_NAMES or path.suffix in PRIVATE_SUFFIXES
+            or ".log." in path.name
             or any(part == ".env" or part.startswith(".env.") for part in path.parts)
             or (path.name.startswith("service-account") and path.suffix == ".json"))
 

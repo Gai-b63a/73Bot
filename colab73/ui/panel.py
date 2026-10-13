@@ -38,6 +38,7 @@ class NotebookPanel:
         self.sample = w.Textarea(description="試聴する文", value="こんにちは。今日は一緒にゲームを楽しみましょう。",
                                  layout=w.Layout(width="95%", height="60px"))
         self.logs = w.HTML()
+        self.activity = w.HTML()
         self.preview = self.button("試聴", lambda: self.launch("preview"))
         self.launch_bot = self.button("BOTを起動", lambda: self.launch("bot"), "success")
         self.stop = self.button("停止", self.stop_process, "warning")
@@ -58,7 +59,7 @@ class NotebookPanel:
                    "<br>新しいColabセッションでは再アップロードしてください。同じセッションでは再利用できます。"),
             self.upload, self.message, self.reference,
             w.HBox([self.preview, self.launch_bot, self.stop]), self.state,
-            self.preview_audio, self.details,
+            w.HTML("<b>稼働ログ</b>"), self.activity, self.preview_audio, self.details,
         ])
         self.upload.observe(self.upload_changed, names="value")
         if self.voice.preset:
@@ -168,6 +169,9 @@ class NotebookPanel:
             self.stop.disabled = self.busy or not running
             self.download.disabled = self.busy or running
             self.logs.value = "<pre style='white-space:pre-wrap;max-height:320px;overflow:auto'>" + html.escape(self.controller.logs()) + "</pre>"
+            activity = "<pre style='white-space:pre-wrap;max-height:240px;overflow:auto'>" + html.escape(self.controller.activity_logs()) + "</pre>"
+            if self.activity.value != activity:
+                self.activity.value = activity
             audio = state.get("audio")
             if not running and audio and audio != self.last_audio and Path(audio).is_file():
                 self.preview_audio.outputs = ()

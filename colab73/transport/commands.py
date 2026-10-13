@@ -8,6 +8,7 @@ from discord.ext import commands
 
 from ..reader import GuildReader
 from .audio import DiscordPlayer, MeasuredVoiceClient
+from ..runtime.activity import log as activity
 
 log = logging.getLogger(__name__)
 
@@ -57,9 +58,11 @@ class ReadingCommands(commands.Cog):
                                      lambda error: self.bot.reader_error(interaction.guild_id, error))
                 self.bot.readers[interaction.guild_id] = reader
                 self.bot.monitored[interaction.guild_id] = interaction.channel_id
+                activity.info("VC接続完了。対象チャンネルの読み上げを開始しました。")
                 await interaction.followup.send("このテキストチャンネルの読み上げを開始しました。", ephemeral=True)
             except Exception as exc:
                 log.error("VC接続失敗 (%s)", type(exc).__name__)
+                activity.error("VC接続に失敗しました。権限と詳細ログを確認してください。")
                 await interaction.followup.send("接続できませんでした。BOTの接続・発言権限とColabのログを確認してください。", ephemeral=True)
 
     @app_commands.command(name="leave", description="読み上げを終了して退出します")

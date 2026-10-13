@@ -19,6 +19,7 @@ from ..contracts import MODEL_ID, RUN_MODES, RuntimePaths, RuntimeStatus, valida
 from ..storage.store import Store
 from .state import StateFile
 from .modes import run_preview, run_discord
+from .activity import configure as configure_activity, log as activity
 from ..locking import RuntimeLock
 from ..metrics import Metrics
 from ..speech.worker import WorkerClient
@@ -44,6 +45,7 @@ async def finish_run(worker, bot, state_task, metrics, state_file, status,
                 await asyncio.gather(state_task, return_exceptions=True)
     except Exception as exc:
         status.update(phase="エラー", error=f"終了処理に失敗しました ({type(exc).__name__})。Colabから再起動してください。")
+        activity.error("終了処理に失敗しました。状態欄と詳細ログを確認してください。")
         raise
     finally:
         metrics.finish(worker.info if worker else {})
@@ -68,6 +70,8 @@ async def run(args):
     if args.mode == "bot" and not token:
         raise ValueError("DISCORD_BOT_TOKENをColabのシークレットに登録してください。")
     with RuntimeLock(paths.lock):
+        configure_activity(paths.activity)
+        activity.info("モデル準備を開始します。")
         worker = None
         bot = None
         state_task = None
@@ -88,6 +92,8 @@ async def run(args):
             worker = WorkerClient()
             print("音声モデルを準備しています。初回のウォームアップをお待ちください。", flush=True)
             await worker.start(model_path, preset)
+            activity.info("音声モデル準備完了（SDPA／FlashAttentionの追加インストール不要）。")
+            activity.info("実行環境：Python %s／PyTorch %s／GPU %s", worker.info.get("python", "不明"), worker.info.get("torch", "不明"), worker.info.get("gpu", "不明"))
             worker.info.update(model_id=MODEL_ID, model_revision=model_path.name)
             status.update(phase="準備完了", environment=worker.info)
             state_file.write(status)
@@ -102,11 +108,14 @@ async def run(args):
                 state_task = asyncio.create_task(report_discord_state(bot, state_file, status))
                 await run_discord(bot, token)
             status["phase"] = "終了"
+            activity.info("処理が終了しました。")
         except asyncio.CancelledError:
             status["phase"] = "停止"
+            activity.info("停止しました。")
             raise
         except Exception as exc:
             status.update(phase="エラー", error=str(exc).replace(token, "[TOKEN]") if token else str(exc))
+            activity.error("実行エラー（%s）。状態欄と詳細ログを確認してください。", type(exc).__name__)
             print(f"エラー: {status['error']}", flush=True)
             raise
         finally:

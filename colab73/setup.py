@@ -12,7 +12,7 @@ def prepare_environment(project, root="/content/73bot-runtime", progress=print):
     root.mkdir(parents=True, exist_ok=True)
     paths = RuntimePaths(root)
     if sys.version_info[:2] != (3, 12):
-        raise RuntimeError("ランタイムのタイプを変更し、Python 3.12の過去のランタイム（2026.07等）を選んでください。")
+        raise RuntimeError("「ランタイム → ランタイムのタイプを変更」でランタイム バージョン「2026.07」とGPUを選んでください。Python 3.12が必要です。")
     runtime_python = Path("/content/73bot-env/bin/python")
     with RuntimeLock(paths.lock), paths.setup_log.open("a", encoding="utf-8") as log:
         def run(command):
@@ -20,7 +20,7 @@ def prepare_environment(project, root="/content/73bot-runtime", progress=print):
 
         progress("GPUを確認しています…")
         try:
-            run([sys.executable, "-c", "import torch; assert torch.cuda.is_available(), 'GPU unavailable'"])
+            run([sys.executable, "-c", "import sys,torch; print('Python',sys.version.split()[0], 'PyTorch',torch.__version__); assert torch.cuda.is_available(), 'GPU unavailable'; print('GPU',torch.cuda.get_device_name())"])
         except subprocess.CalledProcessError:
             raise RuntimeError("GPUが使えません。「ランタイム → ランタイムのタイプを変更」でGPUを選び、再実行してください。") from None
         progress("音声再生に必要な環境を準備しています…")

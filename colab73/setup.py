@@ -4,15 +4,17 @@ import subprocess
 import sys
 
 from .locking import RuntimeLock
+from .contracts import RuntimePaths
 
 
 def prepare_environment(project, root="/content/73bot-runtime", progress=print):
     root = Path(root)
     root.mkdir(parents=True, exist_ok=True)
+    paths = RuntimePaths(root)
     if sys.version_info[:2] != (3, 12):
         raise RuntimeError("ランタイムのタイプを変更し、Python 3.12の過去のランタイム（2026.07等）を選んでください。")
     runtime_python = Path("/content/73bot-env/bin/python")
-    with RuntimeLock(root / "runtime.lock"), (root / "setup.log").open("a", encoding="utf-8") as log:
+    with RuntimeLock(paths.lock), paths.setup_log.open("a", encoding="utf-8") as log:
         def run(command):
             subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, check=True, timeout=1200)
 

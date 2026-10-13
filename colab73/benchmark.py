@@ -4,7 +4,7 @@ from pathlib import Path
 import time
 import wave
 
-from .config import write_json
+from .storage.json import write_json
 from .metrics import summarize
 from .text import split_text
 

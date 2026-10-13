@@ -6,8 +6,16 @@ from pathlib import Path
 import subprocess
 import sys
 
-from .config import Store, read_json, write_json
+from typing import TYPE_CHECKING
+
+from .contracts import RuntimePaths, RuntimeStatus, validate_mode
+from .runtime.state import StateFile
+from .storage.store import Store
 from .locking import RuntimeLock
+
+if TYPE_CHECKING:
+    from .session import SessionVoice
+    from .ui.panel import NotebookPanel
 
 
 class Controller:
@@ -15,12 +23,16 @@ class Controller:
         self.store = Store(store_root)
         self.local_root = Path(local_root).resolve()
         self.local_root.mkdir(parents=True, exist_ok=True)
+        self.paths = RuntimePaths(self.local_root)
+        self.state_file = StateFile(self.paths)
+        self.session_voice: SessionVoice | None = None
+        self.panel: NotebookPanel | None = None
         self.python = str(python or sys.executable)
         self.process = None
         self.log_file = None
 
     def require_stopped(self):
-        with RuntimeLock(self.local_root / "runtime.lock"):
+        with RuntimeLock(self.paths.lock):
             if self.process and self.process.poll() is None:
                 raise RuntimeError("起動処理またはBOTが実行中です。先に停止してください。")
 
@@ -33,17 +45,16 @@ class Controller:
         return self.store.register(*args, **kwargs)
 
     def start(self, mode, token=None, text="こんにちは。読み上げのテストです。"):
-        if mode not in {"bot", "preview", "benchmark"}:
-            raise ValueError("実行モードが不正です。")
+        validate_mode(mode)
         self.require_stopped()
         self.store.preset()
         if mode == "preview" and not text.strip():
             raise ValueError("試聴する文章を入力してください。")
         if mode == "bot" and not token:
             raise ValueError("BOTトークンをColabのシークレットに登録してください。")
-        (self.local_root / "preview-text.txt").write_text(text, encoding="utf-8")
-        self.log_file = self.local_root / "console.log"
-        write_json(self.local_root / "state.json", {"mode": mode, "phase": "起動中"})
+        self.paths.preview_text.write_text(text, encoding="utf-8")
+        self.log_file = self.paths.console
+        self.state_file.write({"mode": mode, "phase": "起動中"})
         env = os.environ.copy()
         env.pop("DISCORD_BOT_TOKEN", None)
         if mode == "bot":
@@ -72,21 +83,20 @@ class Controller:
 
     def _locked(self):
         try:
-            with RuntimeLock(self.local_root / "runtime.lock"):
+            with RuntimeLock(self.paths.lock):
                 return False
         except RuntimeError:
             return True
 
-    def status(self):
-        state = self.local_root / "state.json"
-        value = read_json(state) if state.exists() else {"phase": "未起動"}
+    def status(self) -> RuntimeStatus:
+        value = self.state_file.read()
         value["process_running"] = (self.process is not None and self.process.poll() is None) or self._locked()
         if self.process is not None:
             value["exit_code"] = self.process.poll()
         return value
 
     def logs(self):
-        path = self.local_root / "console.log"
+        path = self.paths.console
         if not path.exists():
             return "まだログはありません。"
         with path.open("rb") as file:

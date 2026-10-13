@@ -1,7 +1,8 @@
 """Cache model weights directly on the session's temporary disk."""
 from pathlib import Path
 
-from .config import MODEL_ID, read_json, write_json
+from .contracts import MODEL_ID
+from .storage.json import read_json, write_json
 
 
 def prepare_model(store_root: Path, local_root: Path) -> Path:

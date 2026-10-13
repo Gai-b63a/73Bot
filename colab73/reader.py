@@ -4,6 +4,8 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 
+from .speech.types import AudioPlayer, Synthesizer
+
 
 @dataclass
 class Job:
@@ -16,7 +18,7 @@ class Job:
 
 
 class GuildReader:
-    def __init__(self, engine, player, metrics, on_error, max_pending=100):
+    def __init__(self, engine: Synthesizer, player: AudioPlayer, metrics, on_error, max_pending=100):
         self.engine, self.player, self.metrics = engine, player, metrics
         self.on_error = on_error
         self.queue = asyncio.Queue(maxsize=max_pending)

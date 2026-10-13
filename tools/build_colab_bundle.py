@@ -19,7 +19,7 @@ def build_bundle(output_root: Path, notebook_path: Path | None = None) -> Path:
     errors = check_content("notebooks/73Bot_Colab.ipynb", notebook)
     if errors:
         raise ValueError("公開前にノートブックを確認してください: " + " / ".join(errors))
-    files = [*sorted((REPO / "colab73").glob("*.py")), REPO / "requirements-colab.txt",
+    files = [*sorted((REPO / "colab73").rglob("*.py")), REPO / "requirements-colab.txt",
              *[REPO / name for name in ("README.md", "LICENSE", "THIRD_PARTY.md", "SECURITY.md", "CONTRIBUTING.md")],
              *sorted((REPO / "docs").glob("*.md")), *sorted((REPO / "docs/images").glob("*.png")),
              REPO / "docs/images/manifest.json"]

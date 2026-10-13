@@ -25,7 +25,7 @@ class SessionVoice:
         if not content:
             raise ValueError("音声ファイルが空です。別の録音を選んでください。")
         # Keep even an invalid reference so its crop can be corrected in details.
-        folder = self.controller.local_root / "uploads"
+        folder = self.controller.paths.uploads
         folder.mkdir(parents=True, exist_ok=True)
         with tempfile.NamedTemporaryFile(dir=folder, suffix=suffix, delete=False) as file:
             file.write(bytes(content))
@@ -72,6 +72,6 @@ class SessionVoice:
 
 
 def session_voice(controller):
-    if not hasattr(controller, "session_voice"):
+    if controller.session_voice is None:
         controller.session_voice = SessionVoice(controller)
     return controller.session_voice

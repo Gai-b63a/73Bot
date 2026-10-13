@@ -3,7 +3,7 @@ import json
 import math
 from pathlib import Path
 import statistics
-from .config import write_json
+from .storage.json import write_json
 
 
 def summarize(values: list[float]) -> dict:

@@ -8,4 +8,4 @@ numpy>=1.26,<3
 soundfile>=0.13,<0.14
 ipywidgets>=8.1,<9
 # torch and torchaudio must have matching versions/CUDA wheels.
-# The notebook checks the preinstalled Colab pair before installing this file.
+# Setup verifies the runtime GPU and matching pair after installation.

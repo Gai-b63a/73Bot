@@ -3,6 +3,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import hashlib
+import struct
+import zlib
 from pathlib import Path, PurePosixPath
 import subprocess
 
@@ -22,6 +25,38 @@ PRIVATE_SUFFIXES = {
     ".zip", ".tar", ".gz", ".7z", ".pyc",
 }
 MAX_TEXT_BYTES = 1024 * 1024
+GUIDE_DIR = "docs/images/"
+MANIFEST = Path(__file__).resolve().parents[1] / GUIDE_DIR / "manifest.json"
+
+
+def check_guide_image(name: str, data: bytes) -> list[str]:
+    """Allow only exact reviewed guide PNGs, without hidden metadata or payloads."""
+    try:
+        entries = json.loads(MANIFEST.read_text(encoding="utf-8"))["images"]
+        item = entries[PurePosixPath(name).name]
+        if name != GUIDE_DIR + PurePosixPath(name).name or hashlib.sha256(data).hexdigest() != item["sha256"]:
+            raise ValueError("unreviewed")
+        if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+            raise ValueError("not PNG")
+        offset, chunks = 8, []
+        while offset < len(data):
+            size = struct.unpack(">I", data[offset:offset + 4])[0]
+            kind = data[offset + 4:offset + 8]
+            body = data[offset + 8:offset + 8 + size]
+            crc = struct.unpack(">I", data[offset + 8 + size:offset + 12 + size])[0]
+            if kind not in {b"IHDR", b"IDAT", b"IEND"} or zlib.crc32(kind + body) != crc:
+                raise ValueError("metadata or corrupt chunk")
+            if kind == b"IHDR" and list(struct.unpack(">II", body[:8])) != item["size"]:
+                raise ValueError("dimensions")
+            chunks.append(kind)
+            offset += size + 12
+            if kind == b"IEND":
+                break
+        if offset != len(data) or chunks[0] != b"IHDR" or chunks[-1] != b"IEND" or b"IDAT" not in chunks:
+            raise ValueError("invalid chunks")
+    except (OSError, ValueError, KeyError, IndexError, TypeError, struct.error):
+        return ["案内画像が未確認、変更済み、またはPNG形式・メタデータの検査に不合格です"]
+    return []
 
 
 def candidate_files(root: Path) -> list[Path]:
@@ -54,6 +89,8 @@ def has_widget_state(value) -> bool:
 
 
 def check_content(name: str, data: bytes) -> list[str]:
+    if name.startswith(GUIDE_DIR) and name.endswith(".png"):
+        return check_guide_image(name, data)
     errors = []
     if private_path(name):
         errors.append("録音・設定・重み・秘密情報・実行生成物のファイルです")

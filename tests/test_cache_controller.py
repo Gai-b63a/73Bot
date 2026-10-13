@@ -31,11 +31,16 @@ def test_cache_pins_revision_and_retries_incomplete_download(tmp_path, monkeypat
     assert read_json(drive / "model.json") == {"id": MODEL_ID, "revision": revision}
     assert not (drive / "models" / revision / ".73bot-complete.json").exists()
     ready = prepare_model(drive, local)
+    assert ready == drive / "models" / revision
+    assert not (local / "models").exists()
     assert (ready / "model.safetensors").read_bytes() == b"complete weights"
     assert len(calls) == 2
     other = prepare_model(drive, tmp_path / "other-session")
+    assert other == ready
     assert (other / "model.safetensors").read_bytes() == b"complete weights"
     assert len(calls) == 2
+    fresh = prepare_model(tmp_path / "new-session", tmp_path / "new-runtime")
+    assert fresh != ready and len(calls) == 3
 
 
 def test_controller_detects_other_runtime_and_blocks_settings(tmp_path):

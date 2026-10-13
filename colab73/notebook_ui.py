@@ -1,112 +1,217 @@
-"""Administrator-only widgets embedded in the Colab notebook."""
+"""Simple session-only controls embedded in the Colab notebook."""
+import asyncio
+import html
 import json
 from pathlib import Path
-import tempfile
+import zipfile
 
-from .controller import Controller
+from .session import session_voice
 
 
-def show_panel(controller: Controller):
-    import ipywidgets as w
-    from IPython.display import Audio, display
+class NotebookPanel:
+    def __init__(self, controller):
+        import ipywidgets as w
+        self.controller = controller
+        self.voice = session_voice(controller)
+        self.busy = False
+        self.monitor = None
+        self.operation = None
+        self.last_audio = None
+        self.message = w.HTML()
+        self.state = w.HTML()
+        self.reference = w.Output()
+        self.preview_audio = w.Output()
+        self.upload = w.FileUpload(accept=".wav,.mp3,.flac,.ogg,.m4a", multiple=False,
+                                   description="音声をアップロード", layout=w.Layout(width="220px"))
+        self.start = w.FloatText(value=self.voice.start, description="開始秒")
+        self.end = w.FloatText(value=self.voice.end, description="終了秒")
+        self.transcript = w.Textarea(description="書き起こし", value=self.voice.transcript,
+                                     placeholder="任意：空欄なら録音だけで声を再現します。",
+                                     layout=w.Layout(width="95%", height="80px"))
+        saved = controller.store.settings()
+        self.volume = w.FloatSlider(description="音量", value=saved["volume"], min=0, max=2, step=.05)
+        self.dictionary = w.Textarea(description="読み辞書", value=json.dumps(saved["dictionary"], ensure_ascii=False, indent=2),
+                                     layout=w.Layout(width="95%", height="90px"))
+        self.sample = w.Textarea(description="試聴する文", value="こんにちは。今日は一緒にゲームを楽しみましょう。",
+                                 layout=w.Layout(width="95%", height="60px"))
+        self.logs = w.HTML()
+        self.preview = self.button("試聴", lambda: self.launch("preview"))
+        self.launch_bot = self.button("BOTを起動", lambda: self.launch("bot"), "success")
+        self.stop = self.button("停止", self.stop_process, "warning")
+        self.benchmark = self.button("20例×3回の測定", lambda: self.launch("benchmark"))
+        self.download = self.button("測定結果をダウンロード", self.download_reports)
+        self.crop = self.button("見本の区間を確認", self.prepare_reference)
+        self.editable = [self.upload, self.start, self.end, self.transcript, self.volume,
+                         self.dictionary, self.sample, self.crop]
+        self.details = w.Accordion(children=[w.VBox([
+            w.HTML("<b>見本の切り出し</b><br>既定は先頭10秒。短い録音は全体を使います。受付は3〜30秒です。"),
+            w.HBox([self.start, self.end]), self.transcript, self.crop,
+            self.sample, self.volume, self.dictionary, self.benchmark, self.download,
+            w.HTML("<b>詳細ログ</b>"), self.logs,
+        ])], selected_index=None)
+        self.details.set_title(0, "詳細設定・測定・ログ")
+        self.widget = w.VBox([
+            w.HTML("<h3>音声をアップロードして起動</h3>ノイズの少ない5〜15秒の録音をおすすめします。"
+                   "<br>新しいColabセッションでは再アップロードしてください。同じセッションでは再利用できます。"),
+            self.upload, self.message, self.reference,
+            w.HBox([self.preview, self.launch_bot, self.stop]), self.state,
+            self.preview_audio, self.details,
+        ])
+        self.upload.observe(self.upload_changed, names="value")
+        if self.voice.preset:
+            self.show_reference(self.voice.preset)
+        self.refresh()
 
-    out = w.Output()
-    saved = controller.store.settings()
-    voice = w.Dropdown(description="使用する声", options=[])
-    volume = w.FloatSlider(description="音量", value=saved["volume"], min=0, max=2, step=.05)
-    dictionary = w.Textarea(description="読み辞書", value=json.dumps(saved["dictionary"], ensure_ascii=False, indent=2),
-                            layout=w.Layout(width="95%", height="100px"))
-    source = w.Text(description="Driveの音声", placeholder="/content/drive/MyDrive/録音.wav", layout=w.Layout(width="95%"))
-    upload = w.FileUpload(accept=".wav,.mp3,.flac,.ogg,.m4a", multiple=False, description="音声を選ぶ")
-    start = w.FloatText(value=0, description="開始秒")
-    end = w.FloatText(value=10, description="終了秒")
-    name = w.Text(description="声の名前")
-    transcript = w.Textarea(description="書き起こし", placeholder="任意：空欄なら録音だけで声を再現します。",
-                            layout=w.Layout(width="95%", height="80px"))
-    sample = w.Textarea(description="試聴する文", value="こんにちは。今日は一緒にゲームを楽しみましょう。",
-                        layout=w.Layout(width="95%", height="60px"))
+    def button(self, label, callback, style=""):
+        import ipywidgets as w
+        button = w.Button(description=label, button_style=style, layout=w.Layout(width="220px"))
+        button.on_click(lambda _: self.schedule(callback))
+        return button
 
-    def refresh_presets(select=None):
-        options = [(p["name"] + " / " + p["id"][:6], p["id"]) for p in controller.store.presets()]
-        voice.options = options
-        ids = [item[1] for item in options]
-        if select in ids:
-            voice.value = select
-        elif saved["preset_id"] in ids:
-            voice.value = saved["preset_id"]
+    def schedule(self, callback):
+        if self.busy:
+            return
+        self.busy = True
+        self.refresh()
 
-    refresh_presets()
+        async def perform():
+            try:
+                await callback()
+            except Exception as exc:
+                self.message.value = f"<b>操作を完了できませんでした。</b> {html.escape(str(exc))}"
+            finally:
+                self.busy = False
+                self.refresh()
 
-    def button(label, callback, style=""):
-        item = w.Button(description=label, button_style=style, layout=w.Layout(width="180px"))
+        try:
+            self.operation = asyncio.get_running_loop().create_task(perform())
+        except RuntimeError:
+            self.busy = False
+            self.message.value = "Colabで準備セルを実行し直してください。"
+            self.refresh()
 
-        def clicked(_):
-            with out:
-                out.clear_output(wait=True)
-                try:
-                    callback()
-                except Exception as exc:
-                    print(str(exc))
+    def upload_changed(self, change):
+        value = change["new"]
+        if not value:
+            return
+        item = list(value.values())[0] if isinstance(value, dict) else value[0]
+        self.schedule(lambda: self.accept_upload(item))
 
-        item.on_click(clicked)
-        return item
+    async def accept_upload(self, item):
+        self.controller.require_stopped()
+        self.reference.clear_output()
+        self.preview_audio.clear_output()
+        # An old preview belongs to the previous voice and must not reappear.
+        self.last_audio = self.controller.status().get("audio")
+        try:
+            preset = await asyncio.to_thread(self.voice.upload, item["name"], item["content"])
+            self.show_reference(preset)
+            self.message.value = "音声の準備ができました。「試聴」または「BOTを起動」を押してください。"
+        except Exception as exc:
+            raise ValueError(f"{exc} 別の録音をアップロードするか、詳細設定で見本の区間を調整してください。") from None
+        finally:
+            self.start.value, self.end.value, self.transcript.value = 0, 10, ""
+            self.upload.value = ()
 
-    def register():
-        controller.require_stopped()
-        with tempfile.TemporaryDirectory(prefix="73bot-upload-") as directory:
-            path = source.value.strip()
-            if upload.value:
-                item = list(upload.value.values())[0] if isinstance(upload.value, dict) else upload.value[0]
-                path = Path(directory) / Path(item["name"]).name
-                path.write_bytes(bytes(item["content"]))
-            if not path:
-                raise ValueError("Driveのファイルを指定するか、音声を選んでください。")
-            preset = controller.register(path, name.value, transcript.value, start.value, end.value)
-        refresh_presets(preset["id"])
-        upload.value = ()
-        print("Driveに声を登録しました。「設定を保存」してから試聴できます。")
-        display(Audio(filename=preset["audio_path"]))
+    def show_reference(self, preset):
+        from IPython.display import Audio, display
+        with self.reference:
+            self.reference.clear_output(wait=True)
+            print(f"声の見本: {preset['duration_seconds']:.1f}秒")
+            display(Audio(filename=preset["audio_path"]))
 
-    def save():
-        if not voice.value:
-            raise ValueError("声を登録・選択してください。")
-        controller.save_settings({"preset_id": voice.value, "volume": volume.value,
-                                  "dictionary": json.loads(dictionary.value)})
-        print("設定をDriveに保存しました。次回も復元されます。")
+    async def prepare_reference(self):
+        preset = await asyncio.to_thread(self.voice.prepare, self.start.value, self.end.value, self.transcript.value)
+        self.show_reference(preset)
+        self.message.value = "この区間を見本に使います。"
 
-    def launch(mode):
-        save()
+    async def launch(self, mode):
+        self.controller.require_stopped()
+        dictionary = json.loads(self.dictionary.value)
+        self.controller.store.validate_settings({"volume": self.volume.value, "dictionary": dictionary})
         token = None
         if mode == "bot":
             from google.colab import userdata
-            token = userdata.get("DISCORD_BOT_TOKEN")
-        controller.start(mode, token=token, text=sample.value)
-        print("処理を開始しました。「状態・ログを確認」で進み具合を確認してください。")
+            try:
+                token = userdata.get("DISCORD_BOT_TOKEN")
+            except Exception:
+                raise ValueError("左の鍵アイコンからDISCORD_BOT_TOKENを登録し、ノートブックへのアクセスを許可してください。") from None
+        preset = await asyncio.to_thread(self.voice.apply, self.start.value, self.end.value,
+                                         self.transcript.value, self.volume.value, dictionary)
+        self.show_reference(preset)
+        self.preview_audio.clear_output()
+        await asyncio.to_thread(self.controller.start, mode, token=token, text=self.sample.value)
+        self.message.value = "準備中です。初回はモデルのダウンロードに時間がかかります。"
 
-    def status():
-        state = controller.status()
-        print(json.dumps(state, ensure_ascii=False, indent=2))
-        print(controller.logs())
-        if not state["process_running"] and state.get("audio") and Path(state["audio"]).is_file():
-            display(Audio(filename=state["audio"]))
-        if not state["process_running"]:
-            print(f"測定結果の保存先: {controller.store.root / 'reports'}")
+    async def stop_process(self):
+        await asyncio.to_thread(self.controller.stop)
+        self.message.value = "停止しました。同じ音声で再起動するか、別の音声をアップロードできます。"
 
-    def stop():
-        controller.stop()
-        print("停止しました。声の選択・設定変更・再起動ができます。")
+    async def download_reports(self):
+        from google.colab import files
+        self.controller.require_stopped()
+        source = self.controller.store.root / "reports"
+        reports = list(source.glob("**/*"))
+        if not any(p.is_file() for p in reports):
+            raise ValueError("測定結果がありません。試聴・測定・BOTを終了してからダウンロードしてください。")
+        archive_path = self.controller.local_root / "73Bot_reports.zip"
+        with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:
+            for path in reports:
+                if path.is_file():
+                    archive.write(path, path.relative_to(source))
+        files.download(str(archive_path))
+        self.message.value = "測定結果のダウンロードを開始しました。"
 
-    registration = w.VBox([
-        w.HTML("<b>初回・新しい声の登録</b><br>ノイズの少ない5〜15秒を推奨（3〜30秒）。"
-               "書き起こしは任意です。空欄なら録音だけで声を再現します。"
-               "入力する場合は、切り出した区間で話している文章と一致させてください。"),
-        source, upload, w.HBox([start, end]), name, transcript,
-        button("声をDriveに登録", register),
-    ])
-    display(w.VBox([
-        registration, w.HTML("<hr><b>保存済み設定</b>（変更は停止中のみ）"),
-        voice, volume, dictionary, button("設定を保存", save), sample,
-        w.HBox([button("試聴", lambda: launch("preview")), button("20例×3回の測定", lambda: launch("benchmark"))]),
-        w.HBox([button("BOTを起動", lambda: launch("bot"), "success"), button("停止", stop, "warning")]),
-        button("状態・ログを確認", status), out,
-    ]))
+    def refresh(self):
+        from IPython.display import Audio, display
+        try:
+            state = self.controller.status()
+            running = state["process_running"]
+            phase = state.get("phase", "未起動")
+            if phase == "稼働中" and running:
+                phase = "BOT稼働中。DiscordでVCに入り、読むチャンネルで /join を実行してください。"
+            elif phase == "終了" and state.get("mode") == "preview":
+                phase = "試聴が完了しました。下の音声を再生してください。"
+            elif not running and state.get("exit_code") not in (None, 0) and phase not in {"停止", "エラー"}:
+                phase = "処理が終了しました。詳細ログを確認して、停止後に再起動してください。"
+            error = state.get("error")
+            self.state.value = f"<b>状態：</b>{html.escape(phase)}" + (
+                f"<br>{html.escape(error)}<br>詳細ログを確認し、停止してから再起動してください。" if error else "")
+            for item in self.editable:
+                item.disabled = running or self.busy
+            for item in (self.preview, self.launch_bot, self.benchmark):
+                item.disabled = running or self.busy or self.voice.source is None
+            self.stop.disabled = self.busy or not running
+            self.download.disabled = self.busy or running
+            self.logs.value = "<pre style='white-space:pre-wrap;max-height:320px;overflow:auto'>" + html.escape(self.controller.logs()) + "</pre>"
+            audio = state.get("audio")
+            if not running and audio and audio != self.last_audio and Path(audio).is_file():
+                with self.preview_audio:
+                    self.preview_audio.clear_output(wait=True)
+                    display(Audio(filename=audio))
+                self.last_audio = audio
+        except (OSError, ValueError):
+            self.state.value = "状態を読み取り中です。"
+
+    def start_monitor(self):
+        if self.monitor and not self.monitor.done():
+            return
+
+        async def watch():
+            while True:
+                self.refresh()
+                await asyncio.sleep(1)
+
+        try:
+            self.monitor = asyncio.get_running_loop().create_task(watch())
+        except RuntimeError:
+            pass
+
+
+def show_panel(controller):
+    from IPython.display import display
+    if not hasattr(controller, "panel"):
+        controller.panel = NotebookPanel(controller)
+    controller.panel.start_monitor()
+    display(controller.panel.widget)
+    return controller.panel

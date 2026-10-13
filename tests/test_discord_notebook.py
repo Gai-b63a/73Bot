@@ -198,5 +198,8 @@ def test_portable_bundle_contains_code_and_no_private_files(tmp_path):
         assert archive.read("LICENSE") == (repo / "LICENSE").read_bytes()
         assert b"Copyright (c) 2026 guy7cc" in archive.read("LICENSE")
         assert "THIRD_PARTY.md" in names
+        assert "docs/images/manifest.json" in names
+        for image in (repo / "docs/images").glob("*.png"):
+            assert archive.read("docs/images/" + image.name) == image.read_bytes()
         for name in names:
             assert not check_content(name, archive.read(name)), name

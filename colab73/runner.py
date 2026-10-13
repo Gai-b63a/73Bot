@@ -103,7 +103,7 @@ async def run(args):
             try:
                 await asyncio.to_thread(shutil.copytree, folder, destination, dirs_exist_ok=True)
             except OSError:
-                print("レポートをDriveへ保存できませんでした。一時ディスクのrunsフォルダに残っています。", flush=True)
+                print("レポートの整理に失敗しました。一時ディスクのrunsフォルダに残っています。", flush=True)
 
 
 async def cancellable_main(args):

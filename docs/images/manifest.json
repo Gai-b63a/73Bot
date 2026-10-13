@@ -1,0 +1,49 @@
+{
+  "captured_on": "2026-10-13",
+  "source": "Discord Developer Portal / Google Colab: cropped actual screens with separate annotations",
+  "privacy_review": "No token values, account information, existing secret rows, application IDs or server information in final PNGs. Publication authorized by the user; guide edits will continue manually.",
+  "images": {
+    "create.png": {
+      "sha256": "28cbd90eae8b3b6cd625c5320b27e70ddae069254509c411bb57ca5155d0f676",
+      "size": [
+        1500,
+        700
+      ]
+    },
+    "gpu.png": {
+      "sha256": "270eedc64b51a9ecfdfb9a7201dfb4edb0dd5699aa191e99b7f49092d3b2c7c7",
+      "size": [
+        700,
+        725
+      ]
+    },
+    "install.png": {
+      "sha256": "a3d6feb689c16003ad717847c93856bbf7e8890a90c0dddff2c9aa59a9b30322",
+      "size": [
+        1740,
+        845
+      ]
+    },
+    "intent.png": {
+      "sha256": "eb4a2a772abce2e1ff22248fa738710301663f514e8e0f023d73a78eafb2268b",
+      "size": [
+        1740,
+        470
+      ]
+    },
+    "secrets.png": {
+      "sha256": "90679ab2a1cf0e1e5e06dbba36f41a6a3bf46385dd0f352def1e6a0f7fff1c9b",
+      "size": [
+        780,
+        480
+      ]
+    },
+    "token.png": {
+      "sha256": "799e63048e32d110f8380931885d13bb0e5cab7480b92a7f401b4f7530fc81ad",
+      "size": [
+        1740,
+        470
+      ]
+    }
+  }
+}

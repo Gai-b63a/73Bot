@@ -1,6 +1,5 @@
-"""Download once to Drive, use local files for inference."""
+"""Cache model weights directly on the session's temporary disk."""
 from pathlib import Path
-import shutil
 
 from .config import MODEL_ID, read_json, write_json
 
@@ -20,15 +19,7 @@ def prepare_model(store_root: Path, local_root: Path) -> Path:
         raise ValueError("モデルの保存バージョンが不正です。")
     cached = store_root / "models" / revision
     if not (cached / ".73bot-complete.json").exists():
-        print("モデルをDriveへ保存しています。初回は時間がかかります。", flush=True)
+        print("モデルをダウンロードしています。このセッションの初回は時間がかかります。", flush=True)
         snapshot_download(MODEL_ID, revision=revision, local_dir=str(cached))
         write_json(cached / ".73bot-complete.json", {"revision": revision})
-    local = local_root / "models" / revision
-    if not (local / ".73bot-complete.json").exists():
-        print("モデルをColabの一時ディスクへコピーしています。", flush=True)
-        local.mkdir(parents=True, exist_ok=True)
-        # Copy the completion marker last, so an interrupted copy is retried.
-        shutil.copytree(cached, local, dirs_exist_ok=True,
-                        ignore=shutil.ignore_patterns(".cache", ".73bot-complete.json"))
-        write_json(local / ".73bot-complete.json", {"revision": revision})
-    return local
+    return cached

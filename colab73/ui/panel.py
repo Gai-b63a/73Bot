@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 
 from ..application import LaunchOptions, NotebookApplication
+from .colab import attach_colab_refresh
+from .uploads import release_upload, uploaded_file
 
 
 class NotebookPanel:
@@ -17,6 +19,7 @@ class NotebookPanel:
         self.monitor = None
         self.operation = None
         self.last_audio = None
+        self.colab_refresh = None
         self.message = w.HTML()
         self.state = w.HTML()
         self.reference = w.Output()
@@ -94,13 +97,13 @@ class NotebookPanel:
         value = change["new"]
         if not value:
             return
-        item = list(value.values())[0] if isinstance(value, dict) else value[0]
+        item = uploaded_file(value)
         self.schedule(lambda: self.accept_upload(item))
 
     async def accept_upload(self, item):
         self.controller.require_stopped()
-        self.reference.clear_output()
-        self.preview_audio.clear_output()
+        self.reference.outputs = ()
+        self.preview_audio.outputs = ()
         # An old preview belongs to the previous voice and must not reappear.
         self.last_audio = self.controller.status().get("audio")
         try:
@@ -111,14 +114,13 @@ class NotebookPanel:
             raise ValueError(f"{exc} 別の録音をアップロードするか、詳細設定で見本の区間を調整してください。") from None
         finally:
             self.start.value, self.end.value, self.transcript.value = 0, 10, ""
-            self.upload.value = ()
+            release_upload(self.upload)
 
     def show_reference(self, preset):
-        from IPython.display import Audio, display
-        with self.reference:
-            self.reference.clear_output(wait=True)
-            print(f"声の見本: {preset['duration_seconds']:.1f}秒")
-            display(Audio(filename=preset["audio_path"]))
+        from IPython.display import Audio
+        self.reference.outputs = ()
+        self.reference.append_stdout(f"声の見本: {preset['duration_seconds']:.1f}秒\n")
+        self.reference.append_display_data(Audio(filename=preset["audio_path"]))
 
     async def prepare_reference(self):
         preset = await asyncio.to_thread(self.voice.prepare, self.start.value, self.end.value, self.transcript.value)
@@ -130,7 +132,7 @@ class NotebookPanel:
                                 self.volume.value, self.dictionary.value, self.sample.value)
         prepared = await self.application.prepare_launch(mode, options)
         self.show_reference(prepared.preset)
-        self.preview_audio.clear_output()
+        self.preview_audio.outputs = ()
         await self.application.start(prepared)
         self.message.value = "準備中です。初回はモデルのダウンロードに時間がかかります。"
 
@@ -145,7 +147,7 @@ class NotebookPanel:
         self.message.value = "測定結果のダウンロードを開始しました。"
 
     def refresh(self):
-        from IPython.display import Audio, display
+        from IPython.display import Audio
         try:
             state = self.controller.status()
             running = state["process_running"]
@@ -168,9 +170,8 @@ class NotebookPanel:
             self.logs.value = "<pre style='white-space:pre-wrap;max-height:320px;overflow:auto'>" + html.escape(self.controller.logs()) + "</pre>"
             audio = state.get("audio")
             if not running and audio and audio != self.last_audio and Path(audio).is_file():
-                with self.preview_audio:
-                    self.preview_audio.clear_output(wait=True)
-                    display(Audio(filename=audio))
+                self.preview_audio.outputs = ()
+                self.preview_audio.append_display_data(Audio(filename=audio))
                 self.last_audio = audio
         except (OSError, ValueError):
             self.state.value = "状態を読み取り中です。"
@@ -196,4 +197,5 @@ def show_panel(controller):
         controller.panel = NotebookPanel(controller)
     controller.panel.start_monitor()
     display(controller.panel.widget)
+    attach_colab_refresh(controller.panel)
     return controller.panel

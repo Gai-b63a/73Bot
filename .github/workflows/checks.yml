@@ -33,7 +33,7 @@ jobs:
           python -m pip install -r requirements-dev.txt
       - name: Check publication candidates
         run: python tools/check_public_files.py
-      - name: Run tests and check generated notebook and bundle
+      - name: Run tests and check editable notebook and bundle
         run: python -m pytest -q
 
   secrets:

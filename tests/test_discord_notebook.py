@@ -184,16 +184,16 @@ def test_portable_bundle_contains_code_and_no_private_files(tmp_path):
     import sys
     import zipfile
     repo = Path(__file__).resolve().parents[1]
-    subprocess.run([sys.executable, str(repo / "tools" / "build_colab_notebook.py"),
+    subprocess.run([sys.executable, str(repo / "tools" / "build_colab_bundle.py"),
                     "--output-dir", str(tmp_path)], check=True)
-    generated = tmp_path / "notebooks" / "73Bot_Colab.ipynb"
     published = repo / "notebooks" / "73Bot_Colab.ipynb"
-    assert json.loads(generated.read_text(encoding="utf-8")) == json.loads(published.read_text(encoding="utf-8"))
+    assert not (tmp_path / "notebooks").exists()
     with zipfile.ZipFile(tmp_path / "dist" / "73Bot_Colab.zip") as archive:
         from tools.check_public_files import check_content
         names = archive.namelist()
         assert "colab73/runner.py" in names
         assert "notebooks/73Bot_Colab.ipynb" in names
+        assert archive.read("notebooks/73Bot_Colab.ipynb") == published.read_bytes()
         assert not any(".env" in n or ".cache" in n or n.endswith(".wav") for n in names)
         assert archive.read("LICENSE") == (repo / "LICENSE").read_bytes()
         assert b"Copyright (c) 2026 guy7cc" in archive.read("LICENSE")

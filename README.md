@@ -2,6 +2,10 @@
 
 [![Colabで開く](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Gai-b63a/73Bot/blob/master/notebooks/73Bot_Colab.ipynb)
 
+**[▶ Google Colabで73Botを開く](https://colab.research.google.com/github/Gai-b63a/73Bot/blob/master/notebooks/73Bot_Colab.ipynb)**
+
+GitHub上の最新版（`master`）のノートブックを開きます。[初回セットアップの手順はこちら](docs/colab.md)。
+
 保存した録音に似た声で、Discordの投稿を読み上げるBOTです。
 Qwen3-TTS 0.6B Baseによる音声生成とDiscordへの接続・再生を、同じGoogle Colab内で動かします。
 
@@ -28,7 +32,7 @@ Qwen3-TTS 0.6B Baseによる音声生成とDiscordへの接続・再生を、同
 ## はじめる
 
 1. [セットアップ手順](docs/colab.md#discordの準備)に従い、Discord BOTと権限を準備します。
-2. 上の「Colabで開く」からノートブックを開き、自分のDriveにコピーしてGPUランタイムを選びます。
+2. [Google Colabでノートブックを開き](https://colab.research.google.com/github/Gai-b63a/73Bot/blob/master/notebooks/73Bot_Colab.ipynb)、自分のDriveにコピーしてGPUランタイムを選びます。
 3. Colabのシークレットに `DISCORD_BOT_TOKEN` を登録します。
 4. 上からセットアップ・Drive接続・管理画面のセルを実行します。取得元は既定のGitHub、`REVISION` は `master` です。
 5. 初回は録音から声を登録・試聴し、「BOTを起動」。DiscordでVCに入り、読みたいテキストチャンネルで `/join` を実行します。
